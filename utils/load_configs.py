@@ -46,6 +46,7 @@ def get_link_prediction_args(is_evaluation: bool = False):
     parser.add_argument('--num_runs', type=int, default=5, help='number of runs')
     parser.add_argument('--test_interval_epochs', type=int, default=10, help='how many epochs to perform testing once')
     parser.add_argument('--load_best_configs', action='store_true', default=False, help='whether to load the best configurations')
+    parser.add_argument('--exp_name', type=str, default='base', help='name of the experiment, used to namespace logs, saved_models and saved_results')
 
     try:
         args = parser.parse_args()

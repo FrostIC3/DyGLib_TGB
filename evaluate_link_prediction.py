@@ -68,9 +68,9 @@ if __name__ == "__main__":
             logging.basicConfig(level=logging.INFO)
             logger = logging.getLogger()
             logger.setLevel(logging.DEBUG)
-            os.makedirs(f"./logs/{args.model_name}/{args.dataset_name}/{args.save_result_name}/", exist_ok=True)
+            os.makedirs(f"./logs/{args.model_name}/{args.dataset_name}/{args.exp_name}/{args.save_result_name}/", exist_ok=True)
             # create file handler that logs debug and higher level messages
-            fh = logging.FileHandler(f"./logs/{args.model_name}/{args.dataset_name}/{args.save_result_name}/{str(time.time())}.log")
+            fh = logging.FileHandler(f"./logs/{args.model_name}/{args.dataset_name}/{args.exp_name}/{args.save_result_name}/{str(time.time())}.log")
             fh.setLevel(logging.DEBUG)
             # create console handler with a higher log level
             ch = logging.StreamHandler()
@@ -127,7 +127,7 @@ if __name__ == "__main__":
                         f'{get_parameter_sizes(model) * 4 / 1024} KB, {get_parameter_sizes(model) * 4 / 1024 / 1024} MB.')
 
             # load the saved model
-            load_model_folder = f"./saved_models/{args.model_name}/{args.dataset_name}/{args.load_model_name}"
+            load_model_folder = f"./saved_models/{args.model_name}/{args.dataset_name}/{args.exp_name}/{args.load_model_name}"
             early_stopping = EarlyStopping(patience=0, save_model_folder=load_model_folder,
                                            save_model_name=args.load_model_name, logger=logger, model_name=args.model_name)
             early_stopping.load_checkpoint(model, map_location='cpu')
@@ -210,7 +210,7 @@ if __name__ == "__main__":
                 }
             result_json = json.dumps(result_json, indent=4)
 
-            save_result_folder = f"./saved_results/{args.model_name}/{args.dataset_name}"
+            save_result_folder = f"./saved_results/{args.model_name}/{args.dataset_name}/{args.exp_name}"
             os.makedirs(save_result_folder, exist_ok=True)
             save_result_path = os.path.join(save_result_folder, f"{args.save_result_name}.json")
             with open(save_result_path, 'w') as file:

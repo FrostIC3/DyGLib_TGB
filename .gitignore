@@ -109,7 +109,7 @@ ENV/
 
 # data
 .vscode/
-saved_results/*/*
-logs/*/*
-saved_models/*/*
+saved_results/*/*/*
+logs/*/*/*
+saved_models/*/*/*
 saved_labeled_node_interaction_indices/*

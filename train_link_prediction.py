@@ -71,9 +71,9 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.INFO)
         logger = logging.getLogger()
         logger.setLevel(logging.DEBUG)
-        os.makedirs(f"./logs/{args.model_name}/{args.dataset_name}/{args.save_model_name}/", exist_ok=True)
+        os.makedirs(f"./logs/{args.model_name}/{args.dataset_name}/{args.exp_name}/{args.save_model_name}/", exist_ok=True)
         # create file handler that logs debug and higher level messages
-        fh = logging.FileHandler(f"./logs/{args.model_name}/{args.dataset_name}/{args.save_model_name}/{str(time.time())}.log")
+        fh = logging.FileHandler(f"./logs/{args.model_name}/{args.dataset_name}/{args.exp_name}/{args.save_model_name}/{str(time.time())}.log")
         fh.setLevel(logging.DEBUG)
         # create console handler with a higher log level
         ch = logging.StreamHandler()
@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
         model = convert_to_gpu(model, device=args.device)
 
-        save_model_folder = f"./saved_models/{args.model_name}/{args.dataset_name}/{args.save_model_name}/"
+        save_model_folder = f"./saved_models/{args.model_name}/{args.dataset_name}/{args.exp_name}/{args.save_model_name}/"
         shutil.rmtree(save_model_folder, ignore_errors=True)
         os.makedirs(save_model_folder, exist_ok=True)
 
@@ -386,7 +386,7 @@ if __name__ == "__main__":
             }
         result_json = json.dumps(result_json, indent=4)
 
-        save_result_folder = f"./saved_results/{args.model_name}/{args.dataset_name}"
+        save_result_folder = f"./saved_results/{args.model_name}/{args.dataset_name}/{args.exp_name}"
         os.makedirs(save_result_folder, exist_ok=True)
         save_result_path = os.path.join(save_result_folder, f"{args.save_model_name}.json")
 
