@@ -338,33 +338,61 @@ class NeighborCooccurrenceEncoder(nn.Module):
 
     def count_nodes_appearances(self, src_padded_nodes_neighbor_ids: np.ndarray, dst_padded_nodes_neighbor_ids: np.ndarray):
         """
-        [patched: fast-cooc] vectorised version of the original per-sample loop.
-        Returns two Tensors, shape (batch_size, src_max_seq_length, 2) and (batch_size, dst_max_seq_length, 2).
+        count the appearances of nodes in the sequences of source and destination nodes
+        :param src_padded_nodes_neighbor_ids: ndarray, shape (batch_size, src_max_seq_length)
+        :param dst_padded_nodes_neighbor_ids:: ndarray, shape (batch_size, dst_max_seq_length)
+        :return:
         """
-        s_all = torch.from_numpy(src_padded_nodes_neighbor_ids).to(self.device)
-        d_all = torch.from_numpy(dst_padded_nodes_neighbor_ids).to(self.device)
-        max_len = max(s_all.shape[1], d_all.shape[1])
-        # bound the (chunk, L, L) comparison tensors to ~5e7 elements
-        chunk = max(1, int(5e7 // (max_len * max_len)))
-        src_out, dst_out = [], []
-        for start in range(0, s_all.shape[0], chunk):
-            s = s_all[start: start + chunk]
-            d = d_all[start: start + chunk]
-            s_in_s = (s.unsqueeze(2) == s.unsqueeze(1)).sum(-1)
-            d_in_d = (d.unsqueeze(2) == d.unsqueeze(1)).sum(-1)
-            s_in_d = (s.unsqueeze(2) == d.unsqueeze(1)).sum(-1)
-            d_in_s = (d.unsqueeze(2) == s.unsqueeze(1)).sum(-1)
-            src_app = torch.stack([s_in_s, s_in_d], dim=-1).float()
-            dst_app = torch.stack([d_in_s, d_in_d], dim=-1).float()
-            # padded positions (id 0) get zero appearances
-            src_app[s == 0] = 0.0
-            dst_app[d == 0] = 0.0
-            src_out.append(src_app)
-            dst_out.append(dst_app)
-        src_app, dst_app = torch.cat(src_out, dim=0), torch.cat(dst_out, dim=0)
-        if False:
-            src_app, dst_app = torch.log1p(src_app), torch.log1p(dst_app)
-        return src_app, dst_app
+        # two lists to store the appearances of source and destination nodes
+        src_padded_nodes_appearances, dst_padded_nodes_appearances = [], []
+        # src_padded_node_neighbor_ids, ndarray, shape (src_max_seq_length, )
+        # dst_padded_node_neighbor_ids, ndarray, shape (dst_max_seq_length, )
+        for src_padded_node_neighbor_ids, dst_padded_node_neighbor_ids in zip(src_padded_nodes_neighbor_ids, dst_padded_nodes_neighbor_ids):
+
+            # src_unique_keys, ndarray, shape (num_src_unique_keys, )
+            # src_inverse_indices, ndarray, shape (src_max_seq_length, )
+            # src_counts, ndarray, shape (num_src_unique_keys, )
+            # we can use src_unique_keys[src_inverse_indices] to reconstruct the original input, and use src_counts[src_inverse_indices] to get counts of the original input
+            src_unique_keys, src_inverse_indices, src_counts = np.unique(src_padded_node_neighbor_ids, return_inverse=True, return_counts=True)
+            # Tensor, shape (src_max_seq_length, )
+            src_padded_node_neighbor_counts_in_src = torch.from_numpy(src_counts[src_inverse_indices]).float().to(self.device)
+            # dictionary, store the mapping relation from unique neighbor id to its appearances for the source node
+            src_mapping_dict = dict(zip(src_unique_keys, src_counts))
+
+            # dst_unique_keys, ndarray, shape (num_dst_unique_keys, )
+            # dst_inverse_indices, ndarray, shape (dst_max_seq_length, )
+            # dst_counts, ndarray, shape (num_dst_unique_keys, )
+            # we can use dst_unique_keys[dst_inverse_indices] to reconstruct the original input, and use dst_counts[dst_inverse_indices] to get counts of the original input
+            dst_unique_keys, dst_inverse_indices, dst_counts = np.unique(dst_padded_node_neighbor_ids, return_inverse=True, return_counts=True)
+            # Tensor, shape (dst_max_seq_length, )
+            dst_padded_node_neighbor_counts_in_dst = torch.from_numpy(dst_counts[dst_inverse_indices]).float().to(self.device)
+            # dictionary, store the mapping relation from unique neighbor id to its appearances for the destination node
+            dst_mapping_dict = dict(zip(dst_unique_keys, dst_counts))
+
+            # we need to use copy() to avoid the modification of src_padded_node_neighbor_ids
+            # Tensor, shape (src_max_seq_length, )
+            src_padded_node_neighbor_counts_in_dst = torch.from_numpy(src_padded_node_neighbor_ids.copy()).apply_(lambda neighbor_id: dst_mapping_dict.get(neighbor_id, 0.0)).float().to(self.device)
+            # Tensor, shape (src_max_seq_length, 2)
+            src_padded_nodes_appearances.append(torch.stack([src_padded_node_neighbor_counts_in_src, src_padded_node_neighbor_counts_in_dst], dim=1))
+
+            # we need to use copy() to avoid the modification of dst_padded_node_neighbor_ids
+            # Tensor, shape (dst_max_seq_length, )
+            dst_padded_node_neighbor_counts_in_src = torch.from_numpy(dst_padded_node_neighbor_ids.copy()).apply_(lambda neighbor_id: src_mapping_dict.get(neighbor_id, 0.0)).float().to(self.device)
+            # Tensor, shape (dst_max_seq_length, 2)
+            dst_padded_nodes_appearances.append(torch.stack([dst_padded_node_neighbor_counts_in_src, dst_padded_node_neighbor_counts_in_dst], dim=1))
+
+        # Tensor, shape (batch_size, src_max_seq_length, 2)
+        src_padded_nodes_appearances = torch.stack(src_padded_nodes_appearances, dim=0)
+        # Tensor, shape (batch_size, dst_max_seq_length, 2)
+        dst_padded_nodes_appearances = torch.stack(dst_padded_nodes_appearances, dim=0)
+
+        # set the appearances of the padded node (with zero index) to zeros
+        # Tensor, shape (batch_size, src_max_seq_length, 2)
+        src_padded_nodes_appearances[torch.from_numpy(src_padded_nodes_neighbor_ids == 0)] = 0.0
+        # Tensor, shape (batch_size, dst_max_seq_length, 2)
+        dst_padded_nodes_appearances[torch.from_numpy(dst_padded_nodes_neighbor_ids == 0)] = 0.0
+
+        return src_padded_nodes_appearances, dst_padded_nodes_appearances
 
     def forward(self, src_padded_nodes_neighbor_ids: np.ndarray, dst_padded_nodes_neighbor_ids: np.ndarray):
         """
