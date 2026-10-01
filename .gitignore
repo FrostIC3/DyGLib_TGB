@@ -108,5 +108,4 @@ ENV/
 
 # data
 .vscode/
-saved_models/*/*/*
 saved_labeled_node_interaction_indices/*
